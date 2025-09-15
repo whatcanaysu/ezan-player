@@ -1,0 +1,15 @@
+{
+  "youtube_videos": {
+    "fajr": "https://www.youtube.com/watch?v=7Z6Qck2r53s",
+    "dhuhr": "https://www.youtube.com/watch?v=b0exfZKJib0",
+    "asr": "https://www.youtube.com/watch?v=IyTxdSsp3TQ&list=RDIyTxdSsp3TQ",
+    "maghrib": "https://www.youtube.com/watch?v=LdjBYwbmWus",
+    "isha": "https://www.youtube.com/watch?v=vIwoU0xQGW0"
+  },
+  "location": {
+    "city": "Barcelona",
+    "country": "Spain",
+    "api": "aladhan",
+    "calculation_method": "13"
+  }
+}
