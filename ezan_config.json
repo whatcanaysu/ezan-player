@@ -9,7 +9,8 @@
   "location": {
     "city": "Barcelona",
     "country": "Spain",
-    "api": "aladhan",
-    "calculation_method": "13"
+    "source": "diyanet_official",
+    "diyanet_city_id": "14262",
+    "url": "https://namazvakitleri.diyanet.gov.tr/tr-TR/14262/barcelona-icin-namaz-vakti"
   }
 }

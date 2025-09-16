@@ -15,6 +15,8 @@ from typing import Dict, List
 import subprocess
 import sys
 import os
+from bs4 import BeautifulSoup
+import re
 
 # Configure logging
 logging.basicConfig(
@@ -89,48 +91,106 @@ class EzanPlayer:
             logging.error(f"Error waking system: {e}")
 
     def get_prayer_times(self):
-        """Fetch prayer times from Aladhan API for Barcelona."""
+        """Fetch prayer times from official Diyanet website for Barcelona."""
         try:
-            # Aladhan API endpoint for prayer times (more reliable than Diyanet)
-            url = "https://api.aladhan.com/v1/timingsByCity"
-            
-            # Parameters for Barcelona, Spain
-            params = {
-                'city': 'Barcelona',
-                'country': 'Spain',
-                'method': '13',  # Method 13 is close to Diyanet calculations
-                'date': datetime.now().strftime('%d-%m-%Y')
-            }
+            # Official Diyanet prayer times website for Barcelona
+            url = "https://namazvakitleri.diyanet.gov.tr/tr-TR/14262/barcelona-icin-namaz-vakti"
             
             headers = {
-                'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36'
+                'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                'Accept-Language': 'tr-TR,tr;q=0.9,en;q=0.8',
+                'Accept-Encoding': 'gzip, deflate, br',
+                'Connection': 'keep-alive',
+                'Upgrade-Insecure-Requests': '1'
             }
             
-            response = requests.get(url, params=params, headers=headers, timeout=10)
+            response = requests.get(url, headers=headers, timeout=15)
             response.raise_for_status()
             
-            data = response.json()
+            # Parse HTML content
+            soup = BeautifulSoup(response.content, 'html.parser')
             
-            if data and data.get('code') == 200:
-                timings = data['data']['timings']
+            # Find the prayer times table
+            table = soup.find('table', class_='table')
+            if not table:
+                # Try alternative table selectors
+                table = soup.find('table')
+                
+            if not table:
+                logging.error("Could not find prayer times table on Diyanet website")
+                return False
+            
+            # Get today's date in Turkish format
+            today = datetime.now()
+            
+            # Turkish month names mapping
+            turkish_months = {
+                'January': 'Ocak', 'February': 'Şubat', 'March': 'Mart',
+                'April': 'Nisan', 'May': 'Mayıs', 'June': 'Haziran',
+                'July': 'Temmuz', 'August': 'Ağustos', 'September': 'Eylül',
+                'October': 'Ekim', 'November': 'Kasım', 'December': 'Aralık'
+            }
+            
+            english_month = today.strftime('%B')
+            turkish_month = turkish_months.get(english_month, english_month)
+            today_day = str(today.day)
+            today_year = str(today.year)
+            
+            # Find today's row in the table
+            today_row = None
+            rows = table.find_all('tr')
+            
+            for row in rows:
+                cells = row.find_all('td')
+                if len(cells) >= 8:  # Should have 8 columns as we discovered
+                    date_cell = cells[0].get_text(strip=True)
+                    # Check if this row contains today's date
+                    if (today_day in date_cell and 
+                        turkish_month in date_cell and 
+                        today_year in date_cell):
+                        today_row = row
+                        break
+            
+            if not today_row:
+                expected_date = f"{today_day} {turkish_month} {today_year}"
+                logging.error(f"Could not find today's prayer times on Diyanet website for date: {expected_date}")
+                return False
+            
+            # Extract prayer times from the row
+            cells = today_row.find_all('td')
+            if len(cells) < 8:
+                logging.error("Invalid table structure - not enough columns")
+                return False
+            
+            # Column order: Miladi Tarih, Hicri Tarih, İmsak, Güneş, Öğle, İkindi, Akşam, Yatsı
+            try:
                 self.prayer_times = {
-                    'fajr': timings.get('Fajr', ''),
-                    'dhuhr': timings.get('Dhuhr', ''), 
-                    'asr': timings.get('Asr', ''),
-                    'maghrib': timings.get('Maghrib', ''),
-                    'isha': timings.get('Isha', '')
+                    'fajr': cells[2].get_text(strip=True),     # İmsak
+                    'dhuhr': cells[4].get_text(strip=True),    # Öğle  
+                    'asr': cells[5].get_text(strip=True),      # İkindi
+                    'maghrib': cells[6].get_text(strip=True),  # Akşam
+                    'isha': cells[7].get_text(strip=True)      # Yatsı
                 }
-                logging.info(f"Prayer times fetched: {self.prayer_times}")
+                
+                # Validate prayer times format (should be HH:MM)
+                for prayer, time_str in self.prayer_times.items():
+                    if not re.match(r'^\d{2}:\d{2}$', time_str):
+                        logging.error(f"Invalid time format for {prayer}: {time_str}")
+                        return False
+                
+                logging.info(f"Diyanet prayer times fetched: {self.prayer_times}")
                 return True
-            else:
-                logging.error("No prayer times data received from API")
+                
+            except (IndexError, AttributeError) as e:
+                logging.error(f"Error parsing prayer times from table: {e}")
                 return False
                 
         except requests.RequestException as e:
-            logging.error(f"Network error fetching prayer times: {e}")
+            logging.error(f"Network error fetching Diyanet prayer times: {e}")
             return False
         except Exception as e:
-            logging.error(f"Error fetching prayer times: {e}")
+            logging.error(f"Error fetching Diyanet prayer times: {e}")
             return False
 
     def play_ezan_video(self, prayer_name: str):

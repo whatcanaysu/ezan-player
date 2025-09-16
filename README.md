@@ -4,7 +4,7 @@ Automatically plays YouTube ezan videos at prayer times according to Diyanet Ba�
 
 ## Features
 
-- 🕰️ Fetches accurate prayer times from Diyanet Başkanlığı API
+- 🕰️ Fetches official prayer times directly from Diyanet Başkanlığı website
 - 📺 Automatically opens YouTube videos at prayer times
 - 💤 Wakes up your computer from sleep mode when prayer time arrives
 - ⚙️ Configurable YouTube video URLs for each prayer (5 prayers)
@@ -185,11 +185,13 @@ ezan_player/
 └── ezanplayer.service    # Linux systemd service (created by setup.py)
 ```
 
-## API Information
+## Data Source Information
 
 This application uses:
-- **Diyanet Başkanlığı API**: `https://namazvakitleri.diyanet.gov.tr/api/PrayerTimes`
-- **Barcelona City ID**: 9541 (in Diyanet system)
+- **Official Diyanet Başkanlığı Website**: `https://namazvakitleri.diyanet.gov.tr/tr-TR/14262/barcelona-icin-namaz-vakti`
+- **Barcelona City ID**: 14262 (in Diyanet system)
+- **Method**: Web scraping from official Diyanet prayer times website
+- **Accuracy**: Official prayer times calculated by Turkish Presidency of Religious Affairs
 
 ## Security and Privacy
 
