@@ -17,6 +17,7 @@ import sys
 import os
 from bs4 import BeautifulSoup
 import re
+import threading
 
 # Configure logging
 logging.basicConfig(
@@ -33,14 +34,21 @@ class EzanPlayer:
         self.config_file = 'ezan_config.json'
         self.prayer_times = {}
         self.youtube_videos = {}
+        self.audio_settings = {}
+        self.original_volume = None
         self.load_config()
         
     def load_config(self):
-        """Load YouTube video URLs from configuration file."""
+        """Load YouTube video URLs and audio settings from configuration file."""
         try:
             with open(self.config_file, 'r', encoding='utf-8') as f:
                 config = json.load(f)
                 self.youtube_videos = config.get('youtube_videos', {})
+                self.audio_settings = config.get('audio_settings', {
+                    'ezan_volume': 65,
+                    'restore_original_volume': True,
+                    'volume_fade_duration': 2
+                })
                 logging.info("Configuration loaded successfully")
         except FileNotFoundError:
             logging.warning("Configuration file not found. Creating default config...")
@@ -59,7 +67,14 @@ class EzanPlayer:
             "location": {
                 "city": "Barcelona",
                 "country": "Spain",
-                "diyanet_city_id": "9541"  # Barcelona's Diyanet city ID
+                "source": "diyanet_official",
+                "diyanet_city_id": "14262",
+                "url": "https://namazvakitleri.diyanet.gov.tr/tr-TR/14262/barcelona-icin-namaz-vakti"
+            },
+            "audio_settings": {
+                "ezan_volume": 65,
+                "restore_original_volume": True,
+                "volume_fade_duration": 2
             }
         }
         
@@ -89,6 +104,55 @@ class EzanPlayer:
             logging.error(f"Failed to wake system: {e}")
         except Exception as e:
             logging.error(f"Error waking system: {e}")
+
+    def get_current_volume(self):
+        """Get current system volume (macOS)."""
+        try:
+            if sys.platform == "darwin":
+                result = subprocess.run(['osascript', '-e', 'output volume of (get volume settings)'], 
+                                      capture_output=True, text=True, check=True)
+                return int(result.stdout.strip())
+            elif sys.platform == "linux":
+                result = subprocess.run(['amixer', 'get', 'Master'], 
+                                      capture_output=True, text=True, check=True)
+                # Parse amixer output to get volume percentage
+                import re
+                match = re.search(r'\[(\d+)%\]', result.stdout)
+                return int(match.group(1)) if match else 50
+            elif sys.platform == "win32":
+                # Windows volume control would need additional setup
+                return 50  # Default fallback
+        except (subprocess.CalledProcessError, ValueError) as e:
+            logging.error(f"Failed to get current volume: {e}")
+            return 50  # Default fallback
+        
+    def set_volume(self, volume_level):
+        """Set system volume level (0-100)."""
+        try:
+            if sys.platform == "darwin":
+                subprocess.run(['osascript', '-e', f'set volume output volume {volume_level}'], 
+                             check=True)
+                logging.info(f"Volume set to {volume_level}%")
+                return True
+            elif sys.platform == "linux":
+                subprocess.run(['amixer', 'set', 'Master', f'{volume_level}%'], 
+                             check=True)
+                logging.info(f"Volume set to {volume_level}%")
+                return True
+            elif sys.platform == "win32":
+                # Windows volume control would need additional libraries
+                logging.warning("Volume control not implemented for Windows")
+                return False
+        except subprocess.CalledProcessError as e:
+            logging.error(f"Failed to set volume to {volume_level}%: {e}")
+            return False
+        
+    def restore_volume(self):
+        """Restore original volume level."""
+        if self.original_volume is not None:
+            self.set_volume(self.original_volume)
+            logging.info(f"Volume restored to original level: {self.original_volume}%")
+            self.original_volume = None
 
     def get_prayer_times(self):
         """Fetch prayer times from official Diyanet website for Barcelona."""
@@ -194,7 +258,7 @@ class EzanPlayer:
             return False
 
     def play_ezan_video(self, prayer_name: str):
-        """Play the appropriate ezan video for the given prayer."""
+        """Play the appropriate ezan video for the given prayer with volume control."""
         try:
             # Wake up the system first
             self.wake_system()
@@ -207,10 +271,39 @@ class EzanPlayer:
                 logging.error(f"No valid YouTube URL configured for {prayer_name}")
                 return
             
-            logging.info(f"Playing {prayer_name} ezan video: {video_url}")
+            # Volume control
+            ezan_volume = self.audio_settings.get('ezan_volume', 30)
+            restore_volume = self.audio_settings.get('restore_original_volume', True)
+            
+            if restore_volume:
+                # Save current volume before changing it
+                self.original_volume = self.get_current_volume()
+                logging.info(f"Current volume: {self.original_volume}%, setting to {ezan_volume}%")
+            
+            # Set ezan volume
+            self.set_volume(ezan_volume)
+            
+            logging.info(f"Playing {prayer_name} ezan video at {ezan_volume}% volume: {video_url}")
             
             # Open YouTube video in default browser
             webbrowser.open(video_url)
+            
+            # Schedule volume restoration if enabled
+            if restore_volume and self.original_volume is not None:
+                # Wait for the ezan duration plus fade time, then restore volume
+                fade_duration = self.audio_settings.get('volume_fade_duration', 2)
+                restore_delay = 60 + fade_duration  # Assume 60 seconds for ezan + fade time
+                
+                # Use threading to restore volume after delay without blocking
+                def delayed_restore():
+                    time.sleep(restore_delay)
+                    self.restore_volume()
+                
+                restore_thread = threading.Thread(target=delayed_restore)
+                restore_thread.daemon = True
+                restore_thread.start()
+                
+                logging.info(f"Volume will be restored to {self.original_volume}% in {restore_delay} seconds")
             
             # Optional: You can also use subprocess to open in a specific browser
             # subprocess.run(['open', '-a', 'Safari', video_url])  # macOS with Safari
@@ -218,6 +311,9 @@ class EzanPlayer:
             
         except Exception as e:
             logging.error(f"Error playing ezan video for {prayer_name}: {e}")
+            # Restore volume on error if we changed it
+            if hasattr(self, 'original_volume') and self.original_volume is not None:
+                self.restore_volume()
 
     def schedule_prayers(self):
         """Schedule ezan videos for today's prayer times."""

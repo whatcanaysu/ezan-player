@@ -12,5 +12,10 @@
     "source": "diyanet_official",
     "diyanet_city_id": "14262",
     "url": "https://namazvakitleri.diyanet.gov.tr/tr-TR/14262/barcelona-icin-namaz-vakti"
+  },
+  "audio_settings": {
+    "ezan_volume": 65,
+    "restore_original_volume": true,
+    "volume_fade_duration": 2
   }
 }

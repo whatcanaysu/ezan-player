@@ -6,6 +6,7 @@ Automatically plays YouTube ezan videos at prayer times according to Diyanet Ba�
 
 - 🕰️ Fetches official prayer times directly from Diyanet Başkanlığı website
 - 📺 Automatically opens YouTube videos at prayer times
+- 🔊 **Smart Volume Control** - Sets comfortable volume level for ezan, then restores original
 - 💤 Wakes up your computer from sleep mode when prayer time arrives
 - ⚙️ Configurable YouTube video URLs for each prayer (5 prayers)
 - 📅 Daily automatic updates of prayer times
@@ -61,6 +62,26 @@ Edit `ezan_config.json` and replace the placeholder URLs with your actual YouTub
   }
 }
 ```
+
+### Volume Control Settings
+
+The application includes smart volume control to prevent loud ezan sounds:
+
+```json
+"audio_settings": {
+  "ezan_volume": 65,              // Volume level for ezan (0-100)
+  "restore_original_volume": true, // Restore your volume after ezan
+  "volume_fade_duration": 2       // Seconds to wait before restoring
+}
+```
+
+**How it works:**
+1. 🔇 Saves your current volume level
+2. 🔊 Sets volume to `ezan_volume` (default: 65% - perfect for hearing clearly)
+3. 🎵 Plays ezan video at comfortable level
+4. 🔄 Restores your original volume after ~60 seconds
+
+**To adjust volume:** Change `ezan_volume` in `ezan_config.json` (0 = silent, 100 = maximum)
 
 ### Finding YouTube Video IDs
 
