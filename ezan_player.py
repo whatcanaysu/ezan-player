@@ -45,7 +45,7 @@ class EzanPlayer:
                 config = json.load(f)
                 self.youtube_videos = config.get('youtube_videos', {})
                 self.audio_settings = config.get('audio_settings', {
-                    'ezan_volume': 65,
+                    'ezan_volume': 75,
                     'restore_original_volume': True,
                     'volume_fade_duration': 2
                 })
@@ -72,7 +72,7 @@ class EzanPlayer:
                 "url": "https://namazvakitleri.diyanet.gov.tr/tr-TR/14262/barcelona-icin-namaz-vakti"
             },
             "audio_settings": {
-                "ezan_volume": 65,
+                "ezan_volume": 75,
                 "restore_original_volume": True,
                 "volume_fade_duration": 2
             }
@@ -153,6 +153,17 @@ class EzanPlayer:
             self.set_volume(self.original_volume)
             logging.info(f"Volume restored to original level: {self.original_volume}%")
             self.original_volume = None
+    
+    def is_office_mode(self):
+        """Check if office mode is enabled via dashboard config."""
+        try:
+            with open(self.config_file, 'r', encoding='utf-8') as f:
+                config = json.load(f)
+                dashboard_config = config.get('dashboard', {})
+                return dashboard_config.get('mode', 'home') == 'office'
+        except Exception as e:
+            logging.error(f"Error checking office mode: {e}")
+            return False  # Default to home mode if error
 
     def get_prayer_times(self):
         """Fetch prayer times from official Diyanet website for Barcelona."""
@@ -260,6 +271,12 @@ class EzanPlayer:
     def play_ezan_video(self, prayer_name: str):
         """Play the appropriate ezan video for the given prayer with volume control."""
         try:
+            # Check if office mode is enabled
+            if self.is_office_mode():
+                logging.info(f"🏢 OFFICE MODE: Skipping {prayer_name.upper()} ezan - prayers disabled")
+                logging.info(f"🏢 OFFICE MODE: To enable prayers, switch to Home Mode in dashboard")
+                return
+            
             # Wake up the system first
             self.wake_system()
             
@@ -271,28 +288,38 @@ class EzanPlayer:
                 logging.error(f"No valid YouTube URL configured for {prayer_name}")
                 return
             
-            # Volume control
-            ezan_volume = self.audio_settings.get('ezan_volume', 30)
+            # Volume control - INSTANT MAX VOLUME for home mode
+            ezan_volume = self.audio_settings.get('ezan_volume', 100)
             restore_volume = self.audio_settings.get('restore_original_volume', True)
             
             if restore_volume:
                 # Save current volume before changing it
                 self.original_volume = self.get_current_volume()
-                logging.info(f"Current volume: {self.original_volume}%, setting to {ezan_volume}%")
+                logging.info(f"Current volume: {self.original_volume}%, setting to MAX {ezan_volume}%")
             
-            # Set ezan volume
-            self.set_volume(ezan_volume)
-            
-            logging.info(f"Playing {prayer_name} ezan video at {ezan_volume}% volume: {video_url}")
+            # IMMEDIATE MAXIMUM VOLUME - Set multiple times instantly for home mode
+            logging.info(f"Setting INSTANT MAX VOLUME to {ezan_volume}% for {prayer_name} ezan")
+            for i in range(5):  # More attempts for instant effect
+                self.set_volume(ezan_volume)
+                time.sleep(0.1)  # Very short delay - almost instant
             
             # Open YouTube video in default browser
             webbrowser.open(video_url)
+            
+            # IMMEDIATELY set volume again - no waiting
+            self.set_volume(ezan_volume)
+            
+            # Set volume one more time after a tiny delay to catch browser audio
+            time.sleep(0.5)
+            self.set_volume(ezan_volume)
+            
+            logging.info(f"Playing {prayer_name} ezan at MAXIMUM {ezan_volume}% volume: {video_url}")
             
             # Schedule volume restoration if enabled
             if restore_volume and self.original_volume is not None:
                 # Wait for the ezan duration plus fade time, then restore volume
                 fade_duration = self.audio_settings.get('volume_fade_duration', 2)
-                restore_delay = 60 + fade_duration  # Assume 60 seconds for ezan + fade time
+                restore_delay = 180 + fade_duration  # 3 minutes for ezan + fade time
                 
                 # Use threading to restore volume after delay without blocking
                 def delayed_restore():

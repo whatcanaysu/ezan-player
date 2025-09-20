@@ -2,7 +2,7 @@
   "youtube_videos": {
     "fajr": "https://www.youtube.com/watch?v=7Z6Qck2r53s",
     "dhuhr": "https://www.youtube.com/watch?v=b0exfZKJib0",
-    "asr": "https://www.youtube.com/watch?v=IyTxdSsp3TQ&list=RDIyTxdSsp3TQ",
+    "asr": "https://www.youtube.com/watch?v=IyTxdSsp3TQ",
     "maghrib": "https://www.youtube.com/watch?v=LdjBYwbmWus",
     "isha": "https://www.youtube.com/watch?v=vIwoU0xQGW0"
   },
@@ -14,8 +14,13 @@
     "url": "https://namazvakitleri.diyanet.gov.tr/tr-TR/14262/barcelona-icin-namaz-vakti"
   },
   "audio_settings": {
-    "ezan_volume": 65,
+    "ezan_volume": 100,
     "restore_original_volume": true,
     "volume_fade_duration": 2
+  },
+  "dashboard": {
+    "mode": "home",
+    "port": 8080,
+    "auto_refresh": true
   }
 }

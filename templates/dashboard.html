@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🕌 Ezan Player Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .status-bar {
+            background: rgba(255,255,255,0.95);
+            padding: 15px;
+            border-radius: 15px;
+            margin-bottom: 30px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            backdrop-filter: blur(10px);
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 30px;
+        }
+
+        .card {
+            background: rgba(255,255,255,0.95);
+            padding: 25px;
+            border-radius: 20px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+
+        .card h2 {
+            color: #333;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .mode-toggle {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .mode-btn {
+            flex: 1;
+            padding: 15px;
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .mode-btn.active {
+            background: #4CAF50;
+            color: white;
+            box-shadow: 0 4px 15px rgba(76, 175, 80, 0.3);
+        }
+
+        .mode-btn:not(.active) {
+            background: #f5f5f5;
+            color: #666;
+        }
+
+        .mode-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0,0,0,0.1);
+        }
+
+        .volume-control {
+            margin: 20px 0;
+        }
+
+        .volume-slider {
+            width: 100%;
+            height: 8px;
+            border-radius: 4px;
+            background: #ddd;
+            outline: none;
+            -webkit-appearance: none;
+        }
+
+        .volume-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #667eea;
+            cursor: pointer;
+        }
+
+        .prayer-times {
+            display: grid;
+            gap: 10px;
+        }
+
+        .prayer-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border-left: 4px solid #ddd;
+        }
+
+        .prayer-item.next {
+            background: linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%);
+            border-left-color: #ff6b6b;
+            font-weight: 600;
+        }
+
+        .prayer-item.done {
+            opacity: 0.6;
+            border-left-color: #6c757d;
+        }
+
+        .btn {
+            padding: 12px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            text-decoration: none;
+            color: white;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+
+        .btn-success {
+            background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+        }
+
+        .btn-warning {
+            background: linear-gradient(135deg, #ff9800 0%, #e68900 100%);
+        }
+
+        .btn-danger {
+            background: linear-gradient(135deg, #f44336 0%, #d32f2f 100%);
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        }
+
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+
+        .status-online { background: #4CAF50; }
+        .status-offline { background: #f44336; }
+
+        .controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .log-container {
+            background: #1a1a1a;
+            color: #00ff00;
+            padding: 15px;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            max-height: 200px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+        }
+
+        .countdown {
+            font-size: 1.2em;
+            font-weight: bold;
+            color: #ff6b6b;
+        }
+
+        @media (max-width: 768px) {
+            .grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .header h1 {
+                font-size: 2em;
+            }
+            
+            .controls {
+                flex-direction: column;
+            }
+            
+            .btn {
+                justify-content: center;
+            }
+        }
+
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🕌 Ezan Player Dashboard</h1>
+            <p>Control your automated prayer call system</p>
+        </div>
+
+        <div class="status-bar">
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 20px;">
+                <div>
+                    <span class="status-indicator" id="statusIndicator"></span>
+                    <strong>Status:</strong> <span id="serviceStatus">Loading...</span>
+                </div>
+                <div>
+                    <strong>📶 Network:</strong> <span id="wifiNetwork">Loading...</span>
+                </div>
+                <div>
+                    <strong>🕐 Time:</strong> <span id="currentTime">Loading...</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="grid">
+            <!-- Mode Control Card -->
+            <div class="card">
+                <h2>📍 Location Mode</h2>
+                <div class="mode-toggle">
+                    <button class="mode-btn" id="homeBtn" onclick="setMode('home')">
+                        🏠 Home Mode
+                    </button>
+                    <button class="mode-btn" id="officeBtn" onclick="setMode('office')">
+                        🏢 Office Mode
+                    </button>
+                </div>
+                <div id="modeDescription" style="padding: 15px; background: #f8f9fa; border-radius: 8px; margin-top: 10px;">
+                    <strong>🏠 Home Mode:</strong> Ezan will play at normal volume (75%)
+                </div>
+            </div>
+
+            <!-- Volume Control Card -->
+            <div class="card">
+                <h2>🔊 Volume Control</h2>
+                <div class="volume-control">
+                    <label for="volumeSlider"><strong>Ezan Volume: <span id="volumeValue">75</span>%</strong></label>
+                    <input type="range" id="volumeSlider" class="volume-slider" min="10" max="100" value="75" onchange="setVolume(this.value)">
+                </div>
+                <div class="controls">
+                    <button class="btn btn-success" onclick="playTest('fajr')">▶️ Test Fajr</button>
+                    <button class="btn btn-success" onclick="playTest('dhuhr')">▶️ Test Dhuhr</button>
+                    <button class="btn btn-success" onclick="playTest('asr')">▶️ Test Asr</button>
+                </div>
+            </div>
+
+            <!-- Prayer Times Card -->
+            <div class="card">
+                <h2>⏰ Today's Prayer Times</h2>
+                <div class="prayer-times" id="prayerTimes">
+                    Loading prayer times...
+                </div>
+                <div id="nextPrayer" style="margin-top: 20px; padding: 15px; background: linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%); border-radius: 8px; text-align: center;">
+                    <strong>Next Prayer Loading...</strong>
+                </div>
+            </div>
+
+            <!-- System Control Card -->
+            <div class="card">
+                <h2>⚙️ System Control</h2>
+                <div class="controls">
+                    <button class="btn btn-primary" onclick="refreshStatus()">🔄 Refresh Status</button>
+                    <button class="btn btn-warning" onclick="restartService()">🔄 Restart Service</button>
+                </div>
+                <div style="margin-top: 20px;">
+                    <strong>📊 Process Info:</strong>
+                    <div id="processInfo" style="margin-top: 10px; font-family: monospace; font-size: 14px;">
+                        Loading...
+                    </div>
+                </div>
+            </div>
+
+            <!-- Logs Card -->
+            <div class="card">
+                <h2>📝 Recent Activity</h2>
+                <div class="log-container" id="logsContainer">
+                    Loading logs...
+                </div>
+                <button class="btn btn-primary" onclick="refreshLogs()" style="margin-top: 15px;">🔄 Refresh Logs</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentMode = 'home';
+        let currentVolume = 75;
+
+        // Auto-refresh every 30 seconds
+        setInterval(refreshStatus, 30000);
+
+        // Initial load
+        refreshStatus();
+        refreshLogs();
+
+        function setMode(mode) {
+            currentMode = mode;
+            
+            fetch('/api/toggle_mode', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({mode: mode})
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    updateModeUI(mode);
+                    showNotification(`Switched to ${mode.charAt(0).toUpperCase() + mode.slice(1)} Mode`, 'success');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showNotification('Failed to change mode', 'error');
+            });
+        }
+
+        function updateModeUI(mode) {
+            const homeBtn = document.getElementById('homeBtn');
+            const officeBtn = document.getElementById('officeBtn');
+            const modeDesc = document.getElementById('modeDescription');
+
+            homeBtn.classList.toggle('active', mode === 'home');
+            officeBtn.classList.toggle('active', mode === 'office');
+
+            if (mode === 'home') {
+                modeDesc.innerHTML = '<strong>🏠 Home Mode:</strong> Ezan will play at normal volume';
+            } else {
+                modeDesc.innerHTML = '<strong>🏢 Office Mode:</strong> Ezan is disabled - silent operation';
+            }
+        }
+
+        function setVolume(volume) {
+            currentVolume = volume;
+            document.getElementById('volumeValue').textContent = volume;
+            
+            fetch('/api/set_volume', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({volume: parseInt(volume)})
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showNotification(`Volume set to ${volume}%`, 'success');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showNotification('Failed to set volume', 'error');
+            });
+        }
+
+        function playTest(prayer) {
+            if (currentMode === 'office') {
+                showNotification('Office mode is active - ezan disabled', 'warning');
+                return;
+            }
+
+            showNotification(`Playing ${prayer} test...`, 'info');
+            
+            fetch('/api/play_test', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({prayer: prayer})
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showNotification(data.message, 'success');
+                } else {
+                    showNotification(data.message || 'Failed to play test', 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showNotification('Failed to play test', 'error');
+            });
+        }
+
+        function restartService() {
+            if (!confirm('Are you sure you want to restart the Ezan Player service?')) return;
+            
+            showNotification('Restarting service...', 'info');
+            
+            fetch('/api/restart_service', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'}
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showNotification('Service restarted successfully', 'success');
+                    setTimeout(refreshStatus, 2000);
+                } else {
+                    showNotification('Failed to restart service', 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showNotification('Failed to restart service', 'error');
+            });
+        }
+
+        function refreshStatus() {
+            fetch('/api/status')
+                .then(response => response.json())
+                .then(data => {
+                    updateModeUI(data.mode);
+                    currentMode = data.mode;
+                    currentVolume = data.volume;
+                    
+                    document.getElementById('volumeSlider').value = data.volume;
+                    document.getElementById('volumeValue').textContent = data.volume;
+                    
+                    // Update status indicator
+                    const indicator = document.getElementById('statusIndicator');
+                    const status = document.getElementById('serviceStatus');
+                    if (data.system_status.service_running) {
+                        indicator.className = 'status-indicator status-online';
+                        status.textContent = 'Online';
+                    } else {
+                        indicator.className = 'status-indicator status-offline';
+                        status.textContent = 'Offline';
+                    }
+                    
+                    // Update network and time
+                    document.getElementById('wifiNetwork').textContent = data.wifi_network;
+                    document.getElementById('currentTime').textContent = data.current_time;
+                    
+                    // Update prayer times
+                    updatePrayerTimes(data.prayer_times, data.next_prayer);
+                    
+                    // Update process info
+                    const processInfo = document.getElementById('processInfo');
+                    if (data.system_status.process_info) {
+                        const info = data.system_status.process_info;
+                        processInfo.innerHTML = `PID: ${info.pid} | CPU: ${info.cpu}% | Memory: ${info.memory}% | Started: ${info.start_time}`;
+                    } else {
+                        processInfo.textContent = 'No process running';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    document.getElementById('serviceStatus').textContent = 'Error';
+                });
+        }
+
+        function updatePrayerTimes(times, nextPrayer) {
+            const container = document.getElementById('prayerTimes');
+            const nextPrayerDiv = document.getElementById('nextPrayer');
+            
+            let html = '';
+            const currentTime = new Date();
+            
+            for (const [prayer, time] of Object.entries(times)) {
+                const [hours, minutes] = time.split(':');
+                const prayerTime = new Date();
+                prayerTime.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+                
+                let className = 'prayer-item';
+                if (nextPrayer && prayer === nextPrayer.name.toLowerCase()) {
+                    className += ' next';
+                } else if (prayerTime < currentTime) {
+                    className += ' done';
+                }
+                
+                html += `
+                    <div class="${className}">
+                        <span><strong>${prayer.charAt(0).toUpperCase() + prayer.slice(1)}</strong></span>
+                        <span>${time}</span>
+                    </div>
+                `;
+            }
+            
+            container.innerHTML = html;
+            
+            if (nextPrayer) {
+                nextPrayerDiv.innerHTML = `
+                    <strong>🔔 Next: ${nextPrayer.name} at ${nextPrayer.time}</strong><br>
+                    <span class="countdown">⏳ ${nextPrayer.countdown}</span>
+                `;
+            }
+        }
+
+        function refreshLogs() {
+            fetch('/api/logs')
+                .then(response => response.json())
+                .then(data => {
+                    const container = document.getElementById('logsContainer');
+                    container.textContent = data.logs.slice(-10).join('');
+                    container.scrollTop = container.scrollHeight;
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    document.getElementById('logsContainer').textContent = 'Error loading logs';
+                });
+        }
+
+        function showNotification(message, type) {
+            // Simple notification - you could enhance this with a proper notification library
+            const notification = document.createElement('div');
+            notification.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                padding: 15px 20px;
+                background: ${type === 'success' ? '#4CAF50' : type === 'error' ? '#f44336' : type === 'warning' ? '#ff9800' : '#2196F3'};
+                color: white;
+                border-radius: 8px;
+                z-index: 1000;
+                font-weight: 600;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            `;
+            notification.textContent = message;
+            
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                notification.remove();
+            }, 3000);
+        }
+    </script>
+</body>
+</html>
+
+
+
+
