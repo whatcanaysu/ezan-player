@@ -72,7 +72,7 @@ class EzanPlayer:
                 "url": "https://namazvakitleri.diyanet.gov.tr/tr-TR/14262/barcelona-icin-namaz-vakti"
             },
             "audio_settings": {
-                "ezan_volume": 75,
+                "ezan_volume": 85,
                 "restore_original_volume": True,
                 "volume_fade_duration": 2
             }
@@ -289,7 +289,7 @@ class EzanPlayer:
                 return
             
             # Volume control - INSTANT MAX VOLUME for home mode
-            ezan_volume = self.audio_settings.get('ezan_volume', 100)
+            ezan_volume = self.audio_settings.get('ezan_volume', 85)
             restore_volume = self.audio_settings.get('restore_original_volume', True)
             
             if restore_volume:
