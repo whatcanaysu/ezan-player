@@ -15,8 +15,15 @@
   },
   "audio_settings": {
     "ezan_volume": 85,
+    "prayer_volumes": {
+      "fajr": 75,
+      "dhuhr": 85,
+      "asr": 85,
+      "maghrib": 85,
+      "isha": 85
+    },
     "restore_original_volume": true,
-    "volume_fade_duration": 2
+    "volume_fade_duration": 0
   },
   "dashboard": {
     "mode": "home",

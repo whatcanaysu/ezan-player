@@ -73,8 +73,15 @@ class EzanPlayer:
             },
             "audio_settings": {
                 "ezan_volume": 85,
+                "prayer_volumes": {
+                    "fajr": 75,
+                    "dhuhr": 85,
+                    "asr": 85,
+                    "maghrib": 85,
+                    "isha": 85
+                },
                 "restore_original_volume": True,
-                "volume_fade_duration": 2
+                "volume_fade_duration": 0
             }
         }
         
@@ -288,8 +295,9 @@ class EzanPlayer:
                 logging.error(f"No valid YouTube URL configured for {prayer_name}")
                 return
             
-            # Volume control - INSTANT MAX VOLUME for home mode
-            ezan_volume = self.audio_settings.get('ezan_volume', 85)
+            # Volume control - Prayer-specific volumes for home mode
+            prayer_volumes = self.audio_settings.get('prayer_volumes', {})
+            ezan_volume = prayer_volumes.get(prayer_name.lower(), self.audio_settings.get('ezan_volume', 85))
             restore_volume = self.audio_settings.get('restore_original_volume', True)
             
             if restore_volume:
@@ -297,8 +305,8 @@ class EzanPlayer:
                 self.original_volume = self.get_current_volume()
                 logging.info(f"Current volume: {self.original_volume}%, setting to MAX {ezan_volume}%")
             
-            # IMMEDIATE MAXIMUM VOLUME - Set multiple times instantly for home mode
-            logging.info(f"Setting INSTANT MAX VOLUME to {ezan_volume}% for {prayer_name} ezan")
+            # CONSISTENT VOLUME - Set volume and keep it steady throughout ezan
+            logging.info(f"Setting CONSISTENT VOLUME to {ezan_volume}% for {prayer_name} ezan")
             for i in range(5):  # More attempts for instant effect
                 self.set_volume(ezan_volume)
                 time.sleep(0.1)  # Very short delay - almost instant
@@ -313,13 +321,13 @@ class EzanPlayer:
             time.sleep(0.5)
             self.set_volume(ezan_volume)
             
-            logging.info(f"Playing {prayer_name} ezan at MAXIMUM {ezan_volume}% volume: {video_url}")
+            logging.info(f"Playing {prayer_name} ezan at CONSISTENT {ezan_volume}% volume: {video_url}")
             
-            # Schedule volume restoration if enabled
+            # NO VOLUME RESTORATION - Keep volume consistent throughout ezan
+            # Only restore volume after a longer delay to avoid interrupting the ezan
             if restore_volume and self.original_volume is not None:
-                # Wait for the ezan duration plus fade time, then restore volume
-                fade_duration = self.audio_settings.get('volume_fade_duration', 2)
-                restore_delay = 180 + fade_duration  # 3 minutes for ezan + fade time
+                # Wait longer before restoring to avoid volume changes during ezan
+                restore_delay = 300  # 5 minutes - well after ezan finishes
                 
                 # Use threading to restore volume after delay without blocking
                 def delayed_restore():
@@ -330,7 +338,7 @@ class EzanPlayer:
                 restore_thread.daemon = True
                 restore_thread.start()
                 
-                logging.info(f"Volume will be restored to {self.original_volume}% in {restore_delay} seconds")
+                logging.info(f"Volume will be restored to {self.original_volume}% in {restore_delay} seconds (after ezan completes)")
             
             # Optional: You can also use subprocess to open in a specific browser
             # subprocess.run(['open', '-a', 'Safari', video_url])  # macOS with Safari
