@@ -74,7 +74,7 @@ class EzanPlayer:
             "audio_settings": {
                 "ezan_volume": 85,
                 "prayer_volumes": {
-                    "fajr": 45,
+                    "fajr": 40,
                     "dhuhr": 85,
                     "asr": 85,
                     "maghrib": 85,
