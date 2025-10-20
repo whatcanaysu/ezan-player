@@ -356,8 +356,14 @@ class EzanPlayer:
             logging.error("No prayer times available for scheduling")
             return
             
-        # Clear existing scheduled jobs
-        schedule.clear()
+        # Clear only prayer jobs, keep daily update job
+        jobs_to_remove = []
+        for job in schedule.jobs:
+            if job.job_func.__name__ == 'play_ezan_video':
+                jobs_to_remove.append(job)
+        
+        for job in jobs_to_remove:
+            schedule.cancel_job(job)
         
         for prayer_name, prayer_time in self.prayer_times.items():
             if prayer_time and prayer_time != '':
@@ -378,11 +384,15 @@ class EzanPlayer:
 
     def run_daily_update(self):
         """Daily task to fetch new prayer times and reschedule."""
-        logging.info("Running daily prayer times update...")
+        logging.info("🕐 Running daily prayer times update...")
+        logging.info(f"🕐 Current date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        
         if self.get_prayer_times():
+            logging.info(f"🕐 New prayer times fetched: {self.prayer_times}")
             self.schedule_prayers()
+            logging.info("🕐 Daily update completed successfully")
         else:
-            logging.error("Failed to update prayer times, keeping existing schedule")
+            logging.error("🕐 Failed to update prayer times, keeping existing schedule")
 
     def run(self):
         """Main application loop."""
@@ -397,6 +407,7 @@ class EzanPlayer:
         
         # Schedule daily updates at midnight
         schedule.every().day.at("00:01").do(self.run_daily_update)
+        logging.info("🕐 Daily update scheduled for 00:01 every day")
         
         logging.info("Ezan Player is running. Press Ctrl+C to stop.")
         
