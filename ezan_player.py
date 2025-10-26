@@ -409,13 +409,13 @@ class EzanPlayer:
         # Initial setup - try to get prayer times, but don't exit if it fails
         if not self.get_prayer_times():
             logging.error("Failed to fetch initial prayer times. Using fallback times...")
-            # Use fallback prayer times based on approximate Barcelona times
+            # Use fallback prayer times based on Barcelona winter time (DST ended Oct 26)
             self.prayer_times = {
-                'fajr': '06:42',    # Approximate for late October
-                'dhuhr': '13:39',   
-                'asr': '16:34',     
-                'maghrib': '19:02', 
-                'isha': '20:22'     
+                'fajr': '06:42',    # Winter time for late October
+                'dhuhr': '12:39',   # 1 hour earlier due to winter time
+                'asr': '15:34',     # 1 hour earlier due to winter time
+                'maghrib': '18:02', # 1 hour earlier due to winter time - CORRECT!
+                'isha': '19:22'     # 1 hour earlier due to winter time
             }
             logging.info(f"Using fallback prayer times: {self.prayer_times}")
             
