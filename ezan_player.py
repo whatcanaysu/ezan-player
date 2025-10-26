@@ -227,10 +227,18 @@ class EzanPlayer:
                 cells = row.find_all('td')
                 if len(cells) >= 8:  # Should have 8 columns as we discovered
                     date_cell = cells[0].get_text(strip=True)
-                    # Check if this row contains today's date
-                    if (today_day in date_cell and 
-                        turkish_month in date_cell and 
-                        today_year in date_cell):
+                    # More robust date matching - check for exact patterns
+                    expected_patterns = [
+                        f"{today_day} {turkish_month} {today_year}",  # "26 Ekim 2025"
+                        f"{today_day.zfill(2)} {turkish_month} {today_year}",  # "26 Ekim 2025" with zero padding
+                        f"{today_day} {turkish_month[:4]} {today_year}",  # "26 Ekim 2025" with month abbreviation
+                    ]
+                    
+                    # Check if any expected pattern matches
+                    date_match = any(pattern in date_cell for pattern in expected_patterns)
+                    
+                    if date_match:
+                        logging.info(f"Found matching date row: '{date_cell}'")
                         today_row = row
                         break
             
@@ -398,10 +406,18 @@ class EzanPlayer:
         """Main application loop."""
         logging.info("Starting Ezan Player...")
         
-        # Initial setup
+        # Initial setup - try to get prayer times, but don't exit if it fails
         if not self.get_prayer_times():
-            logging.error("Failed to fetch initial prayer times. Exiting...")
-            return
+            logging.error("Failed to fetch initial prayer times. Using fallback times...")
+            # Use fallback prayer times based on approximate Barcelona times
+            self.prayer_times = {
+                'fajr': '06:42',    # Approximate for late October
+                'dhuhr': '13:39',   
+                'asr': '16:34',     
+                'maghrib': '19:02', 
+                'isha': '20:22'     
+            }
+            logging.info(f"Using fallback prayer times: {self.prayer_times}")
             
         self.schedule_prayers()
         
