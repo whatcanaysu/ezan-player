@@ -193,87 +193,114 @@ class EzanPlayer:
             # Parse HTML content
             soup = BeautifulSoup(response.content, 'html.parser')
             
-            # Find the prayer times table
-            table = soup.find('table', class_='table')
-            if not table:
-                # Try alternative table selectors
-                table = soup.find('table')
-                
+            # Diyanet pages include both layouts (verified on namazvakitleri.diyanet.gov.tr):
+            # - 10 cells: Vakit, Saat, Miladi Tarih (idx 2), Hicri, then five prayer times.
+            # - 8 cells: Miladi Tarih (idx 0), Hicri, İmsak … Yatsı.
+            tables = soup.find_all('table')
+            table = None
+            for idx, candidate in enumerate(tables):
+                cand_rows = candidate.find_all('tr')
+                if len(cand_rows) < 3:
+                    continue
+                header_cells = cand_rows[0].find_all(['th', 'td'])
+                header_text = ' '.join(c.get_text(strip=True) for c in header_cells)
+                if 'İmsak' in header_text and 'Öğle' in header_text:
+                    table = candidate
+                    logging.info(
+                        "Using prayer table %s with headers: %s",
+                        idx + 1,
+                        [c.get_text(strip=True) for c in header_cells],
+                    )
+                    break
+
             if not table:
                 logging.error("Could not find prayer times table on Diyanet website")
                 return False
-            
+
             # Get today's date in Turkish format
             today = datetime.now()
-            
-            # Turkish month names mapping
+
             turkish_months = {
                 'January': 'Ocak', 'February': 'Şubat', 'March': 'Mart',
                 'April': 'Nisan', 'May': 'Mayıs', 'June': 'Haziran',
                 'July': 'Temmuz', 'August': 'Ağustos', 'September': 'Eylül',
-                'October': 'Ekim', 'November': 'Kasım', 'December': 'Aralık'
+                'October': 'Ekim', 'November': 'Kasım', 'December': 'Aralık',
             }
-            
+
             english_month = today.strftime('%B')
             turkish_month = turkish_months.get(english_month, english_month)
             today_day = str(today.day)
             today_year = str(today.year)
-            
-            # Find today's row in the table
+
+            date_needles = (
+                f"{today_day} {turkish_month} {today_year}",
+                f"{today_day.zfill(2)} {turkish_month} {today_year}",
+            )
+
             today_row = None
-            rows = table.find_all('tr')
-            
-            for row in rows:
+            row_kind = None  # 'wide' (10 cols) or 'compact' (8 cols)
+            for row in table.find_all('tr'):
                 cells = row.find_all('td')
-                if len(cells) >= 8:  # Should have 8 columns as we discovered
-                    date_cell = cells[0].get_text(strip=True)
-                    # More robust date matching - check for exact patterns
-                    expected_patterns = [
-                        f"{today_day} {turkish_month} {today_year}",  # "26 Ekim 2025"
-                        f"{today_day.zfill(2)} {turkish_month} {today_year}",  # "26 Ekim 2025" with zero padding
-                        f"{today_day} {turkish_month[:4]} {today_year}",  # "26 Ekim 2025" with month abbreviation
-                    ]
-                    
-                    # Check if any expected pattern matches
-                    date_match = any(pattern in date_cell for pattern in expected_patterns)
-                    
-                    if date_match:
-                        logging.info(f"Found matching date row: '{date_cell}'")
+                if len(cells) >= 10:
+                    date_cell = cells[2].get_text(strip=True)
+                    if any(n in date_cell for n in date_needles):
                         today_row = row
+                        row_kind = 'wide'
+                        logging.info(
+                            "Found today's row (10-col): '%s'", date_cell
+                        )
                         break
-            
-            if not today_row:
+                elif len(cells) >= 8:
+                    date_cell = cells[0].get_text(strip=True)
+                    if any(n in date_cell for n in date_needles):
+                        today_row = row
+                        row_kind = 'compact'
+                        logging.info(
+                            "Found today's row (8-col): '%s'", date_cell
+                        )
+                        break
+
+            if not today_row or row_kind is None:
                 expected_date = f"{today_day} {turkish_month} {today_year}"
-                logging.error(f"Could not find today's prayer times on Diyanet website for date: {expected_date}")
+                logging.error(
+                    "Could not find today's prayer times for date: %s",
+                    expected_date,
+                )
                 return False
-            
-            # Extract prayer times from the row
+
             cells = today_row.find_all('td')
-            if len(cells) < 8:
-                logging.error("Invalid table structure - not enough columns")
-                return False
-            
-            # Column order: Miladi Tarih, Hicri Tarih, İmsak, Güneş, Öğle, İkindi, Akşam, Yatsı
             try:
-                self.prayer_times = {
-                    'fajr': cells[2].get_text(strip=True),     # İmsak
-                    'dhuhr': cells[4].get_text(strip=True),    # Öğle  
-                    'asr': cells[5].get_text(strip=True),      # İkindi
-                    'maghrib': cells[6].get_text(strip=True),  # Akşam
-                    'isha': cells[7].get_text(strip=True)      # Yatsı
-                }
-                
-                # Validate prayer times format (should be HH:MM)
+                if row_kind == 'wide':
+                    self.prayer_times = {
+                        'fajr': cells[4].get_text(strip=True),
+                        'dhuhr': cells[6].get_text(strip=True),
+                        'asr': cells[7].get_text(strip=True),
+                        'maghrib': cells[8].get_text(strip=True),
+                        'isha': cells[9].get_text(strip=True),
+                    }
+                else:
+                    self.prayer_times = {
+                        'fajr': cells[2].get_text(strip=True),
+                        'dhuhr': cells[4].get_text(strip=True),
+                        'asr': cells[5].get_text(strip=True),
+                        'maghrib': cells[6].get_text(strip=True),
+                        'isha': cells[7].get_text(strip=True),
+                    }
+
                 for prayer, time_str in self.prayer_times.items():
                     if not re.match(r'^\d{2}:\d{2}$', time_str):
-                        logging.error(f"Invalid time format for {prayer}: {time_str}")
+                        logging.error(
+                            "Invalid time format for %s: %s", prayer, time_str
+                        )
                         return False
-                
-                logging.info(f"Diyanet prayer times fetched: {self.prayer_times}")
+
+                logging.info(
+                    "Diyanet prayer times fetched: %s", self.prayer_times
+                )
                 return True
-                
+
             except (IndexError, AttributeError) as e:
-                logging.error(f"Error parsing prayer times from table: {e}")
+                logging.error("Error parsing prayer times from table: %s", e)
                 return False
                 
         except requests.RequestException as e:
