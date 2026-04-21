@@ -481,9 +481,13 @@
                     // Update status indicator
                     const indicator = document.getElementById('statusIndicator');
                     const status = document.getElementById('serviceStatus');
-                    if (data.system_status.service_running) {
+                    const online = data.system_status.ezan_running
+                        ?? data.system_status.service_running;
+                    if (online) {
                         indicator.className = 'status-indicator status-online';
-                        status.textContent = 'Online';
+                        status.textContent = data.system_status.service_running
+                            ? 'Online'
+                            : 'Online (manual)';
                     } else {
                         indicator.className = 'status-indicator status-offline';
                         status.textContent = 'Offline';
@@ -588,6 +592,7 @@
     </script>
 </body>
 </html>
+
 
 
 

@@ -57,28 +57,48 @@ def save_dashboard_config():
 def get_system_status():
     """Get current system status."""
     try:
-        # Check if service is running
-        result = subprocess.run(['launchctl', 'list'], capture_output=True, text=True)
-        service_running = 'com.ezanplayer' in result.stdout
-        
-        # Get process info
-        result = subprocess.run(['ps', 'aux'], capture_output=True, text=True)
-        process_lines = [line for line in result.stdout.split('\n') if 'ezan_player.py' in line]
-        
+        # Launch Agent (optional): user may run ezan_player manually instead
+        result = subprocess.run(
+            ['launchctl', 'list'],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        launchd_running = 'com.ezanplayer' in result.stdout
+
+        # Any python process running the ezan player script
+        result = subprocess.run(
+            ['ps', 'aux'],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        process_lines = [
+            line for line in result.stdout.split('\n')
+            if 'ezan_player.py' in line and 'grep' not in line
+        ]
+
         process_info = None
         if process_lines:
             parts = process_lines[0].split()
+            # ps aux: USER PID %CPU %MEM VSZ RSS TT STAT STARTED TIME COMMAND
+            # STARTED is not always at a fixed index; use PID/CPU/MEM reliably
             process_info = {
                 'pid': parts[1],
                 'cpu': parts[2],
                 'memory': parts[3],
-                'start_time': parts[8]
+                'start_time': parts[8] if len(parts) > 8 else '—',
             }
-        
+
+        player_running = process_info is not None
+        # Dashboard "Online" = Launch Agent OR manual ezan_player process
+        ezan_running = launchd_running or player_running
+
         return {
-            'service_running': service_running,
+            'service_running': launchd_running,
+            'ezan_running': ezan_running,
             'process_info': process_info,
-            'timestamp': datetime.now().strftime('%H:%M:%S')
+            'timestamp': datetime.now().strftime('%H:%M:%S'),
         }
     except Exception as e:
         logger.error(f"Error getting system status: {e}")
