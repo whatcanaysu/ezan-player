@@ -4,20 +4,32 @@ Automated Ezan Player
 Plays different YouTube ezan videos at prayer times according to Diyanet Başkanlığı for Barcelona, Spain.
 """
 
-import requests
-import schedule
-import time
-import webbrowser
 import json
 import logging
-from datetime import datetime, timedelta
-from typing import Dict, List
+import re
 import subprocess
 import sys
-import os
-from bs4 import BeautifulSoup
-import re
 import threading
+import time
+import webbrowser
+from datetime import datetime, timedelta
+from typing import Dict, Optional, Set, Tuple
+
+import requests
+from bs4 import BeautifulSoup
+
+# If a prayer time passes while the machine is asleep / offline, we will still
+# trigger the ezan when the app "catches up" as long as we are within this
+# many minutes of the scheduled time. Beyond that we skip it (playing dhuhr
+# two hours late makes no sense).
+MISSED_PRAYER_GRACE_MINUTES = 15
+
+# How often the main loop checks whether a prayer should fire.
+TICK_INTERVAL_SECONDS = 30
+
+# How long to wait between retries when fetching prayer times fails.
+FETCH_RETRY_SECONDS = 60
+FETCH_MAX_ATTEMPTS = 5
 
 # Configure logging
 logging.basicConfig(
@@ -385,84 +397,109 @@ class EzanPlayer:
             if hasattr(self, 'original_volume') and self.original_volume is not None:
                 self.restore_volume()
 
-    def schedule_prayers(self):
-        """Schedule ezan videos for today's prayer times."""
-        if not self.prayer_times:
-            logging.error("No prayer times available for scheduling")
-            return
-            
-        # Clear only prayer jobs, keep daily update job
-        jobs_to_remove = []
-        for job in schedule.jobs:
-            if job.job_func.__name__ == 'play_ezan_video':
-                jobs_to_remove.append(job)
-        
-        for job in jobs_to_remove:
-            schedule.cancel_job(job)
-        
-        for prayer_name, prayer_time in self.prayer_times.items():
-            if prayer_time and prayer_time != '':
-                try:
-                    # Convert prayer time to datetime
-                    today = datetime.now().date()
-                    prayer_datetime = datetime.strptime(f"{today} {prayer_time}", "%Y-%m-%d %H:%M")
-                    
-                    # Only schedule if the prayer time hasn't passed today
-                    if prayer_datetime > datetime.now():
-                        schedule.every().day.at(prayer_time).do(self.play_ezan_video, prayer_name)
-                        logging.info(f"Scheduled {prayer_name} ezan at {prayer_time}")
-                    else:
-                        logging.info(f"Skipped {prayer_name} at {prayer_time} (already passed today)")
-                        
-                except ValueError as e:
-                    logging.error(f"Error parsing time for {prayer_name}: {prayer_time} - {e}")
+    def _ensure_prayer_times_for_today(self) -> bool:
+        """Make sure ``self.prayer_times`` contains today's times.
 
-    def run_daily_update(self):
-        """Daily task to fetch new prayer times and reschedule."""
-        logging.info("🕐 Running daily prayer times update...")
-        logging.info(f"🕐 Current date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-        
-        if self.get_prayer_times():
-            logging.info(f"🕐 New prayer times fetched: {self.prayer_times}")
-            self.schedule_prayers()
-            logging.info("🕐 Daily update completed successfully")
-        else:
-            logging.error("🕐 Failed to update prayer times, keeping existing schedule")
+        Retries a few times on failure instead of giving up after one network
+        hiccup (e.g. wake-from-sleep). Returns True if we have usable times.
+        """
+        today = datetime.now().date()
+        if self._prayer_times_date == today and self.prayer_times:
+            return True
 
-    def run(self):
+        for attempt in range(1, FETCH_MAX_ATTEMPTS + 1):
+            if self.get_prayer_times():
+                self._prayer_times_date = today
+                self._played_today.clear()
+                logging.info(
+                    "Prayer times loaded for %s: %s", today, self.prayer_times
+                )
+                return True
+            logging.warning(
+                "Prayer times fetch attempt %d/%d failed; retrying in %ds",
+                attempt,
+                FETCH_MAX_ATTEMPTS,
+                FETCH_RETRY_SECONDS,
+            )
+            time.sleep(FETCH_RETRY_SECONDS)
+
+        logging.error(
+            "Could not fetch prayer times for %s after %d attempts",
+            today,
+            FETCH_MAX_ATTEMPTS,
+        )
+        return False
+
+    def _tick(self) -> None:
+        """Single iteration of the main loop: fire any prayer that is due."""
+        today = datetime.now().date()
+
+        if self._prayer_times_date != today:
+            if not self._ensure_prayer_times_for_today():
+                return
+
+        now = datetime.now()
+        grace_seconds = MISSED_PRAYER_GRACE_MINUTES * 60
+
+        for prayer_name, prayer_time_str in self.prayer_times.items():
+            if prayer_name in self._played_today:
+                continue
+            try:
+                prayer_dt = datetime.strptime(
+                    f"{today} {prayer_time_str}", "%Y-%m-%d %H:%M"
+                )
+            except ValueError:
+                logging.error(
+                    "Invalid time for %s: %r", prayer_name, prayer_time_str
+                )
+                continue
+
+            delta = (now - prayer_dt).total_seconds()
+            if 0 <= delta <= grace_seconds:
+                logging.info(
+                    "Triggering %s ezan (scheduled %s, now %s, %.0fs late)",
+                    prayer_name,
+                    prayer_time_str,
+                    now.strftime("%H:%M:%S"),
+                    delta,
+                )
+                self._played_today.add(prayer_name)
+                self.play_ezan_video(prayer_name)
+            elif delta > grace_seconds:
+                # We're too late to play this one meaningfully. Mark it as
+                # "done for today" so we don't accidentally fire it hours
+                # later once the machine catches up.
+                logging.warning(
+                    "Skipping %s: too late (%.0f min past %s)",
+                    prayer_name,
+                    delta / 60,
+                    prayer_time_str,
+                )
+                self._played_today.add(prayer_name)
+
+    def run(self) -> None:
         """Main application loop."""
         logging.info("Starting Ezan Player...")
-        
-        # Initial setup - try to get prayer times, but don't exit if it fails
-        if not self.get_prayer_times():
-            logging.error("Failed to fetch initial prayer times. Using fallback times...")
-            # Use fallback prayer times based on Barcelona winter time (DST ended Oct 26)
-            self.prayer_times = {
-                'fajr': '06:42',    # Winter time for late October
-                'dhuhr': '12:39',   # 1 hour earlier due to winter time
-                'asr': '15:34',     # 1 hour earlier due to winter time
-                'maghrib': '18:02', # 1 hour earlier due to winter time - CORRECT!
-                'isha': '19:22'     # 1 hour earlier due to winter time
-            }
-            logging.info(f"Using fallback prayer times: {self.prayer_times}")
-            
-        self.schedule_prayers()
-        
-        # Schedule daily updates at midnight
-        schedule.every().day.at("00:01").do(self.run_daily_update)
-        logging.info("🕐 Daily update scheduled for 00:01 every day")
-        
-        logging.info("Ezan Player is running. Press Ctrl+C to stop.")
-        
+
+        self._played_today: Set[str] = set()
+        self._prayer_times_date: Optional[datetime.date] = None
+
+        self._ensure_prayer_times_for_today()
+
+        logging.info(
+            "Ezan Player is running (checking every %ds). Press Ctrl+C to stop.",
+            TICK_INTERVAL_SECONDS,
+        )
+
         try:
             while True:
-                schedule.run_pending()
-                time.sleep(30)  # Check every 30 seconds
-                
+                try:
+                    self._tick()
+                except Exception as exc:  # never let a tick kill the loop
+                    logging.exception("Error during tick: %s", exc)
+                time.sleep(TICK_INTERVAL_SECONDS)
         except KeyboardInterrupt:
             logging.info("Ezan Player stopped by user")
-        except Exception as e:
-            logging.error(f"Unexpected error in main loop: {e}")
 
 def main():
     """Entry point of the application."""
